@@ -1,6 +1,6 @@
 # docker-tui
 Simple docker tui that lets you list, start and stop your containers.
-![screenshot](http://snakolek.ironsys.pl/img/snakolek/snakolek.png)
+![screenshot](screenshot.png)
 ## Current status
 Rough, initial prototype.
 ## Build with
