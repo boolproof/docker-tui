@@ -113,7 +113,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.GetDockerClientWrapper().StopContainer(msg.ContainerID)
 		return m, nil
 	case RefreshListMsg:
-		return m, m.list.SetItems(GetContainerListItems(m.dc))
+		setItemsCmd := m.list.SetItems(GetContainerListItems(m.dc))
+		return m, tea.Batch(setItemsCmd)
 	case ErrorNotificationMsg:
 		return m, m.list.NewStatusMessage(statusMessageStyle(msg.msg))
 	}
