@@ -35,7 +35,8 @@ func (i item) Description() string { return i.description }
 func (i item) FilterValue() string { return i.title }
 
 type listKeyMap struct {
-	toggleHelpMenu key.Binding
+	toggleHelpMenu      key.Binding
+	toggleAllContainers key.Binding
 }
 
 func newListKeyMap() *listKeyMap {
@@ -44,39 +45,70 @@ func newListKeyMap() *listKeyMap {
 			key.WithKeys("H"),
 			key.WithHelp("H", "toggle help"),
 		),
+		toggleAllContainers: key.NewBinding(
+			key.WithKeys("c"),
+			key.WithHelp("c", "toggle all/running containers"),
+		),
 	}
 }
 
 type model struct {
-	list         list.Model
-	keys         *listKeyMap
-	delegateKeys *delegateKeyMap
-	dc           DockerClientWrapper
+	list          list.Model
+	keys          *listKeyMap
+	delegateKeys  *delegateKeyMap
+	dc            DockerClientWrapper
+	allContainers bool
 }
 
 func newModel(dc DockerClientWrapper) model {
 	var (
 		delegateKeys = newDelegateKeyMap()
 		listKeys     = newListKeyMap()
+		all          = true
 	)
 
 	// Setup list
 	delegate := newItemDelegate(delegateKeys)
-	containerList := list.NewModel(GetContainerListItems(dc), delegate, 0, 0)
+	containerList := list.NewModel(GetContainerListItems(dc, all), delegate, 0, 0)
 	containerList.Title = "Docker containers"
 	containerList.Styles.Title = titleStyle
 	containerList.AdditionalFullHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			listKeys.toggleHelpMenu,
+			listKeys.toggleAllContainers,
 		}
 	}
 
-	return model{
-		list:         containerList,
-		keys:         listKeys,
-		delegateKeys: delegateKeys,
-		dc:           dc,
+	m := model{
+		list:          containerList,
+		keys:          listKeys,
+		delegateKeys:  delegateKeys,
+		dc:            dc,
+		allContainers: all,
 	}
+
+	m.SetListTitleForMode(all)
+
+	return m
+}
+
+func (m *model) SetListTitleForMode(all bool) {
+	title := "Docker containers"
+
+	if all == true {
+		title += " (all)"
+	} else {
+		title += " (running)"
+	}
+
+	m.list.Title = title
+}
+
+func (m *model) ToggleAllContainers() tea.Cmd {
+	m.allContainers = !m.allContainers
+	m.SetListTitleForMode(m.allContainers)
+
+	return RefreshListCmd()
 }
 
 func (m model) GetDockerClientWrapper() DockerClientWrapper {
@@ -105,6 +137,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.toggleHelpMenu):
 			m.list.SetShowHelp(!m.list.ShowHelp())
 			return m, nil
+		case key.Matches(msg, m.keys.toggleAllContainers):
+			cmd := m.ToggleAllContainers()
+			return m, cmd
 		}
 	case StartDockerContainerMsg:
 		m.GetDockerClientWrapper().StartContainer(msg.ContainerID)
@@ -113,8 +148,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.GetDockerClientWrapper().StopContainer(msg.ContainerID)
 		return m, nil
 	case RefreshListMsg:
-		setItemsCmd := m.list.SetItems(GetContainerListItems(m.dc))
-		return m, tea.Batch(setItemsCmd)
+		setItemsCmd := m.list.SetItems(GetContainerListItems(m.dc, m.allContainers))
+		return m, setItemsCmd
 	case ErrorNotificationMsg:
 		return m, m.list.NewStatusMessage(statusMessageStyle(msg.msg))
 	}
@@ -157,10 +192,17 @@ func main() {
 }
 
 type RefreshListMsg struct{}
+
+func RefreshListCmd() tea.Cmd {
+	return func() tea.Msg {
+		return RefreshListMsg{}
+	}
+}
+
 type ErrorNotificationMsg struct{ msg string }
 
-func GetContainerListItems(dc DockerClientWrapper) []list.Item {
-	containers := dc.GetContainerList()
+func GetContainerListItems(dc DockerClientWrapper, all bool) []list.Item {
+	containers := dc.GetContainerList(all)
 	items := make([]list.Item, 0)
 
 	for _, c := range containers {

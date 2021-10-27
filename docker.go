@@ -29,8 +29,8 @@ func (dc DockerClientWrapper) GetDeamonEventStreams() (<-chan events.Message, <-
 	return dc.GetClient().Events(context.Background(), types.EventsOptions{})
 }
 
-func (dc DockerClientWrapper) GetContainerList() []types.Container {
-	containers, err := dc.GetClient().ContainerList(context.Background(), types.ContainerListOptions{All: true})
+func (dc DockerClientWrapper) GetContainerList(all bool) []types.Container {
+	containers, err := dc.GetClient().ContainerList(context.Background(), types.ContainerListOptions{All: all})
 	if err != nil {
 		panic(err)
 	}
