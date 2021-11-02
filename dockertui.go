@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -203,12 +204,16 @@ type ErrorNotificationMsg struct{ msg string }
 
 func GetContainerListItems(dc DockerClientWrapper, all bool) []list.Item {
 	containers := dc.GetContainerList(all)
+	sort.Slice(containers, func(i, j int) bool {
+		return containers[i].Names[0] < containers[j].Names[0]
+	})
+
 	items := make([]list.Item, 0)
 
 	for _, c := range containers {
 		items = append(items, item{
 			title:          c.Names[0],
-			description:    fmt.Sprintf("%s %s", c.ID, c.State),
+			description:    fmt.Sprintf("%s %s", c.ID[0:12], c.State),
 			containerID:    c.ID,
 			containerState: c.State,
 		})
